@@ -25,25 +25,27 @@ subCarrierIndex20 = np.array([-28, -26, -24, -22, -20, -18, -16, -14, -12, -10, 
 
 class Track(object):
     def __init__(self,
-                 search_interval=(-np.pi / 2, np.pi / 2),           # 角度搜寻区间
+                 search_interval=(-np.pi / 2, np.pi / 2),           # angle search interval(radian measure)
                  toa_interval=(-2.5, 2.5),                          # 
-                 slide_window=0.4,                                  # 滑动窗口大小（单位为s）
-                 filename=None,                                     # CSI文件路径
-                 initial_angle=0,                                   # 初始角度
-                 use_mdl=1,                                         # 使用MDL
-                 use_pca=1,                                         # 使用PCA
-                 use40mhz=False,                                    # 使用40MHz带宽
+                 slide_window=0.4,                                  # sliding window size(unit is s)
+                 filename1=None,                                    # the first card's CSI path
+                 filename2=None,                                    # the second card's CSI path
+                 initial_angle=0,                                   # the initial angle
+                 use_mdl=True,                                      # whether to use mdl
+                 use_pca=True,                                      # whether to use PCA
+                 use40mhz=False,                                    # whether to use 40MHz
                  use_trans=[5, 6],                                  # 
-                 overlay=0.2,                                       # 重叠率
-                 show_image=0,                                      # 显示角度伪谱图
-                 begin=None,                                        # CSI开始索引
-                 end=None                                           # CSI结束索引
+                 overlay=0.2,                                       # overlap ratio
+                 show_image=0,                                      # whether to show pseudospectral graph
+                 begin=None,                                        # the start index
+                 end=None                                           # the end index
                  ):
         
         self.search_interval = search_interval
         self.toa_interval = toa_interval
         self.slide_window = slide_window
-        self.filename = filename
+        self.filename1 = filename1
+        self.filename2 = filename2
         self.initial_angle = initial_angle
         self.useMDL = use_mdl
         self.usePCA = use_pca
@@ -60,16 +62,16 @@ class Track(object):
         a_mat = np.append(a_mat, np.ones((1, subCarrierNum * rxAntennaNum)), axis=0)
         # 90 * 2
         a_mat = a_mat.transpose()
-        # 求伪逆矩阵 2 * 90
+        # Compute the (Moore-Penrose) pseudo-inverse of a_mat
         self.a_mat_pinv = np.linalg.pinv(a_mat)
         
         
         
         self.angleStepsNum = 10000
-        # 角度迭代步长
+        # angle iteration stride
         self.angleStepLen = (self.search_interval[1] - self.search_interval[0]) / self.angleStepsNum
         self.angleSteps = np.arange(self.search_interval[0], self.search_interval[1], self.angleStepLen, dtype=float)
-        # 将搜索起始点和终点转换为角度
+        # convert the search start point and end point to the degree measure
         self.angleIntervalDeg = (self.search_interval[0] * 180 / np.pi, self.search_interval[1] * 180 / np.pi)
         
         self.toaStepsNum = 10000
@@ -78,24 +80,22 @@ class Track(object):
         
         
         
-        # 滑动窗口的大小（包的数量）
+        # size of the sliding windo(number of packets)
         self.slideWindowLen = int(self.slide_window * sampleFrequency)
         
-        # 滑动窗口的步长
+        # stride of the sliding window
         self.stepLength = int((1 - self.overlay) * self.slideWindowLen)
-        # 重叠的长度
+        # length of overlap
         self.overlapLength = self.slideWindowLen - self.stepLength
         
-        # 读取CSI文件
-        file_r, file_length = read_bf_file.read_file(self.filename)
+        # read CSI file
+        file_r1, file_length1 = read_bf_file.read_file(self.filename1)
+        file_r2, file_length2 = read_bf_file.read_file(self.filename2)
         
         if begin != None and end != None:
-            self.angle_list_index, self.angle_list = self.readFile(file_r, file_length, begin=begin, end=end)
+            self.angle_list_index, self.angle_list = self.readFile(file_r1, file_length1, file_r2, file_length2, begin=begin, end=end)
         else:
-            self.angle_list_index, self.angle_list = self.readFile(file_r, file_length, begin=None, end=None)
-
-    def get_AoA(self):
-        return self.aoa
+            self.angle_list_index, self.angle_list = self.readFile(file_r1, file_length1, file_r2, file_length2, begin=None, end=None)
 
     def getLogGeoMean(self, x):
         """
@@ -192,12 +192,12 @@ class Track(object):
             selectIndex = list(indexDescend)[0: sourceNum]
         return selectIndex
 
-    # 将CSI数据填充到矩阵
-    def fillCSIMatrix(self, fileToRead):
-        CSIMatrix = np.zeros([len(fileToRead), rxAntennaNum, subCarrierNum], dtype=complex)
+    # populate CSI data into a matrix
+    def fillCSIMatrix(self, fileToRead1, fileToRead2):
+        CSIMatrix = np.zeros([len(fileToRead1), rxAntennaNum, subCarrierNum], dtype=complex)
         timestampCount = 0
-        for item in fileToRead:
-            for EachCSI in range(0, 30):
+        for [item1, item2] in np.array([fileToRead1, fileToRead2]).transpose():
+            for EachCSI in range(0, subCarrierNum):
                 # 读取的CSI原始数据的一个csi是[子载波数, 发射天线数, 接收天线数]
                 CSIMatrix[timestampCount, :, EachCSI] = \
                     np.array([item.csi[EachCSI, 0, 0], item.csi[EachCSI, 0, 1],
@@ -306,27 +306,34 @@ class Track(object):
         return csi_mul
 
     def readFile(self, *args, begin=None, end=None):
-        # 读取文件
+        # read file
         file1 = args[0]
-        # 取出感兴趣的CSI段
+        file2 = args[2]
+        fileLen1 = args[1]
+        fileLen2 = args[3]
+        # extract the interested CSI segment
         if begin != None and end != None:
             file1 = file1[begin:end]
+            file2 = file2[begin:end]
+            fileLen1 = len(file1)
+            fileLen2 = len(file2)
         windowNow = 0
-        fileLen = args[1]
-        print("file len: {}".format(fileLen))
+
+        print("file1 len: {} and file2 len: {}".format(fileLen1, fileLen2))
         
-        # CSI数据格式为：slideWindowLen * 3 * 30
+        # the format of csi data：slideWindowLen * rxAntennaNum * subCarrierNum
         CSIMatrix1 = np.zeros([self.slideWindowLen, rxAntennaNum, subCarrierNum], dtype=complex)
         
         
+        # the target angle
         angle_list = []
         angle_list_index = []
         
         
-        # 循环处理整个CSI段
-        while windowNow + self.slideWindowLen <= fileLen:  # two Receiver file
+        # iteratively process the entire CSI segment
+        while windowNow + self.slideWindowLen <= fileLen1:  # two Receiver file
             if windowNow == 0:  # when CSIOverlap1 is empty
-                CSIMatrix1 = self.fillCSIMatrix(file1[0: self.slideWindowLen])
+                CSIMatrix1 = self.fillCSIMatrix(file1[0: self.slideWindowLen], file2[0: self.slideWindowLen])
             else:
                 CSIMatrix1[:self.overlapLength, :, :] = CSIMatrix1[-self.overlapLength:, :, :]
                 CSIMatrix1[self.overlapLength:, :, :] = self.fillCSIMatrix(file1[windowNow + self.overlapLength: windowNow + self.slideWindowLen])
