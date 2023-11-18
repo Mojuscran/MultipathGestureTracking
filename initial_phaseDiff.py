@@ -65,12 +65,12 @@ class initial_phaseDiff:
                 self.antennaPair_Six.append(item.csi[eachcsi][0][2])
 
 
-        self.antennaPair_One = np.reshape(self.antennaPair_One, (self.file_len1, 30))
-        self.antennaPair_Two = np.reshape(self.antennaPair_Two, (self.file_len1, 30))
-        self.antennaPair_Three = np.reshape(self.antennaPair_Three, (self.file_len1, 30))
-        self.antennaPair_Four = np.reshape(self.antennaPair_Four, (self.file_len2, 30))
-        self.antennaPair_Five = np.reshape(self.antennaPair_Five, (self.file_len2, 30))
-        self.antennaPair_Six = np.reshape(self.antennaPair_Six, (self.file_len2, 30))
+        self.antennaPair_One = np.reshape(self.antennaPair_One, (self.file_len1, subCarrierNum))
+        self.antennaPair_Two = np.reshape(self.antennaPair_Two, (self.file_len1, subCarrierNum))
+        self.antennaPair_Three = np.reshape(self.antennaPair_Three, (self.file_len1, subCarrierNum))
+        self.antennaPair_Four = np.reshape(self.antennaPair_Four, (self.file_len2, subCarrierNum))
+        self.antennaPair_Five = np.reshape(self.antennaPair_Five, (self.file_len2, subCarrierNum))
+        self.antennaPair_Six = np.reshape(self.antennaPair_Six, (self.file_len2, subCarrierNum))
     
     def getInitialPhaseDiff(self):
         self.ret1 = np.divide(self.antennaPair_One, self.antennaPair_Two)
