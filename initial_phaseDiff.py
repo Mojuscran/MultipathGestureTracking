@@ -27,8 +27,10 @@ class initial_phaseDiff:
         self.filePath2 = filePath2
         self.file_len1 = 0
         self.file_len2 = 0
+        # len * 1
         self.timestamp1 = []
         self.timestamp2 = []
+        # len * 30
         self.antennaPair_One = []
         self.antennaPair_Two = []
         self.antennaPair_Three = []
@@ -36,17 +38,20 @@ class initial_phaseDiff:
         self.antennaPair_Five = []
         self.antennaPair_Six = []
         
-        self.staticPhaseDifference12 = 0
-        self.staticPhaseDifference13 = 0
-        self.staticPhaseDifference45 = 0
-        self.staticPhaseDifference46 = 0
+        # 1 * 30
+        self.staticPhaseDifference12 = []
+        self.staticPhaseDifference23 = []
+        self.staticPhaseDifference45 = []
+        self.staticPhaseDifference46 = []
         # read CSI file
         self.readFile(self.filePath1, self.filePath2, begin, end)
         self.getInitialPhaseDiff()
-        print("the static phase difference of antennaPair_One and antennaPair_Two:{}".format(self.staticPhaseDifference12))
-        print("the static phase difference of antennaPair_One and antennaPair_Three:{}".format(self.staticPhaseDifference13))
-        print("the static phase difference of antennaPair_Four and antennaPair_Five:{}".format(self.staticPhaseDifference45))
-        print("the static phase difference of antennaPair_Four and antennaPair_Six:{}".format(self.staticPhaseDifference46))
+        # print("the static phase difference of antennaPair_One and antennaPair_Two:{}".format(self.staticPhaseDifference12))
+        # print("the static phase difference of antennaPair_One and antennaPair_Three:{}".format(self.staticPhaseDifference13))
+        # print("the static phase difference of antennaPair_Four and antennaPair_Five:{}".format(self.staticPhaseDifference45))
+        # print("the static phase difference of antennaPair_Four and antennaPair_Six:{}".format(self.staticPhaseDifference46))
+        
+        
         
     # read file
     def readFile(self, filePath1, filePath2, begin=0, end=-1):
@@ -85,19 +90,29 @@ class initial_phaseDiff:
         self.antennaPair_Six = np.reshape(self.antennaPair_Six, (self.file_len2, subCarrierNum))
     
     def getInitialPhaseDiff(self):
-        self.ret1 = np.divide(self.antennaPair_One, self.antennaPair_Two)
-        self.ret2 = np.divide(self.antennaPair_One, self.antennaPair_Three)
+        sixAntennasData = np.array([self.antennaPair_One, self.antennaPair_Two, self.antennaPair_Three, \
+            self.antennaPair_Four, self.antennaPair_Five, self.antennaPair_Six])
+        # 6 * 30
+        np.save('phaseReference', np.nanmean(sixAntennasData, axis=1))
+        # len * 30
+        self.ret1 = np.divide(self.antennaPair_One, self.antennaPair_Three)
+        self.ret2 = np.divide(self.antennaPair_Two, self.antennaPair_Three)
         self.ret3 = np.divide(self.antennaPair_Four, self.antennaPair_Five)
         self.ret4 = np.divide(self.antennaPair_Four, self.antennaPair_Six)
-        self.PCAret1 = np.mean(self.ret1, axis=1)
-        self.PCAret2 = np.mean(self.ret2, axis=1)
-        self.PCAret3 = np.mean(self.ret3, axis=1)
-        self.PCAret4 = np.mean(self.ret4, axis=1)
+        # 30
+        self.PCAret1 = np.nanmean(self.ret1, axis=0)
+        self.PCAret2 = np.nanmean(self.ret2, axis=0)
+        self.PCAret3 = np.nanmean(self.ret3, axis=0)
+        self.PCAret4 = np.nanmean(self.ret4, axis=0)
         
         self.staticPhaseDifference12 = np.mean(np.angle(self.PCAret1))
         self.staticPhaseDifference13 = np.mean(np.angle(self.PCAret2))
         self.staticPhaseDifference45 = np.mean(np.angle(self.PCAret3))
         self.staticPhaseDifference46 = np.mean(np.angle(self.PCAret4))
+        # 4 * 30
+        sixAntennasDataDiff = np.array([self.staticPhaseDifference13, self.staticPhaseDifference23, \
+            self.staticPhaseDifference45, self.staticPhaseDifference46])
+        np.save('phaseDiffReference', sixAntennasDataDiff)
 
 
 if __name__ == '__main__':
