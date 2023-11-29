@@ -1,13 +1,25 @@
 # created in 2023/11/11
 # correct phase ambiguity through static state
 
+
+# align the antennas of the two routers one meter apart
+# 
 import read_bf_file
 import numpy as np
 import matplotlib.pyplot as plt
 
+sampleFrequency = 200           # Hertz
+centerFrequency = 5.32e9        # Hertz
+speedOfLight = 299792458        # speed of electromagnetic wave
+antDistance = 2.8e-2            # half of the wavelength
 rxAntennaNum = 5                # nmber of rx antennas
 txAntennaNum = 1                # nmber of tx antennas
 subCarrierNum = 30
+f_gap = 312.5e3
+subCarrierIndex40 = np.array([-58, -54, -50, -46, -42, -38, -34, -30, -26, -22, -18, -14, -10, -6, -2,
+                              2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58])
+subCarrierIndex20 = np.array([-28, -26, -24, -22, -20, -18, -16, -14, -12, -10, -8, -6, -4, -2, -1,
+                              1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 28])
 
 class initial_phaseDiff:
     def __init__(self, filePath1, filePath2, begin=0, end=-1):
@@ -37,10 +49,10 @@ class initial_phaseDiff:
         print("the static phase difference of antennaPair_Four and antennaPair_Six:{}".format(self.staticPhaseDifference46))
         
     # read file
-    def readFile(self, filePath1, filePath2, begin=None, end=None):
+    def readFile(self, filePath1, filePath2, begin=0, end=-1):
         file1, self.file_len1 = read_bf_file.read_file(filePath1)
         file2, self.file_len2 = read_bf_file.read_file(filePath2)
-        if begin != None and end != None:
+        if begin != 0 or end != -1:
             file1 = file1[begin:end]
             file2 = file2[begin:end]
             self.file_len1 = len(file1)
